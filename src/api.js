@@ -10,10 +10,8 @@ export async function handleApi(request, env = {}, transport = fetch) {
   const json = (data, status = 200) => Response.json(data, { status, headers: cors });
   try {
     if (origin && !allowed.includes(origin)) throw new AppError('這個前台網址尚未被後端允許，請檢查 ALLOWED_ORIGINS。', 403);
-    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { ...cors, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '86400' } });
-    if (path === '/api/health' && request.method === 'GET') return json({ ok: true, name: 'imgD', requiresToken: !!env.API_TOKEN || env.REQUIRE_TOKEN === 'true' });
-    if (env.REQUIRE_TOKEN === 'true' && !env.API_TOKEN) throw new AppError('後端尚未設定存取密碼 API_TOKEN，請先完成部署設定。', 503);
-    if (env.API_TOKEN && request.headers.get('authorization') !== `Bearer ${env.API_TOKEN}`) throw new AppError('存取密碼不正確，請打開「連線設定」檢查。', 401);
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { ...cors, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '86400' } });
+    if (path === '/api/health' && request.method === 'GET') return json({ ok: true, name: 'imgD' });
     if (request.method !== 'POST') throw new AppError('不支援此請求。', 405);
     if (!['/api/scan-page', '/api/image'].includes(path)) throw new AppError('找不到這個功能。', 404);
     if (env.RATE_LIMITER) {

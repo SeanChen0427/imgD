@@ -18,14 +18,15 @@ test('validates each redirect before making another request', async () => {
   assert.equal(count, 1);
 });
 
-test('enforces API password and origin without making outbound requests', async () => {
-  const env = { API_TOKEN: 'unit-test', ALLOWED_ORIGINS: 'https://front.example' };
+test('allows use without a password and rejects unapproved browser origins', async () => {
+  const env = { ALLOWED_ORIGINS: 'https://front.example' };
   const transport = () => { throw new Error('unexpected network request'); };
-  assert.equal((await handleApi(request('scan-page', {}), env, transport)).status, 401);
-  assert.equal((await handleApi(request('scan-page', {}, { Origin: 'https://evil.example', Authorization: 'Bearer unit-test' }), env, transport)).status, 403);
-  const response = await handleApi(request('scan-page', {}, { Origin: 'https://front.example', Authorization: 'Bearer unit-test' }), env, transport);
+  assert.equal((await handleApi(request('scan-page', {}), env, transport)).status, 400);
+  assert.equal((await handleApi(request('scan-page', {}, { Origin: 'https://evil.example' }), env, transport)).status, 403);
+  const response = await handleApi(request('scan-page', {}, { Origin: 'https://front.example' }), env, transport);
   assert.equal(response.status, 400); assert.equal(response.headers.get('Access-Control-Allow-Origin'), 'https://front.example');
-  assert.equal((await handleApi(request('scan-page', {}), { REQUIRE_TOKEN: 'true' }, transport)).status, 503);
+  const health = await handleApi(new Request('https://api.example/api/health'), env, transport);
+  assert.deepEqual(await health.json(), { ok: true, name: 'imgD' });
 });
 
 test('scans a page and downloads an image with referer, but forwards no frontend credentials', async () => {

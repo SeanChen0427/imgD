@@ -5,7 +5,8 @@ const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 function stored(storage, key) { try { return storage.getItem(key) || ''; } catch { return ''; } }
 function save(storage, key, value) { try { value ? storage.setItem(key, value) : storage.removeItem(key); } catch { /* private mode */ } }
 let apiBase = stored(localStorage, 'imgd-api') || window.IMGD_CONFIG?.apiBase || (local ? location.origin : '');
-let apiToken = stored(sessionStorage, 'imgd-token');
+// Remove the password retained by earlier versions; this tool requires no login.
+save(sessionStorage, 'imgd-token', '');
 const state = { images: [], logs: [], busy: false, controller: null, scanned: 0, attempted: 0, title: '', source: '' };
 let toastTimer;
 
@@ -42,7 +43,7 @@ function endpoint(base) {
   return url.href.replace(/\/$/, '');
 }
 async function api(path, body, signal, settings = {}) {
-  const base = settings.base ?? apiBase, token = settings.token ?? apiToken;
+  const base = settings.base ?? apiBase;
   if (!base) throw new Error('請先在「連線設定」填入後端網址。');
   const url = `${endpoint(base)}${path}`;
   for (let retry = 0; retry < 3; retry++) {
@@ -50,7 +51,7 @@ async function api(path, body, signal, settings = {}) {
     try {
       response = await fetch(url, {
         method: body ? 'POST' : 'GET', mode: 'cors', credentials: 'omit',
-        headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: body ? { 'Content-Type': 'application/json' } : {},
         ...(body ? { body: JSON.stringify(body) } : {}),
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(35000)]) : AbortSignal.timeout(35000),
       });
@@ -72,13 +73,12 @@ async function checkConnection(settings) {
 async function refreshConnection() {
   if (!apiBase) { $('connection-label').textContent = '設定抓圖後端'; $('connection-badge').classList.remove('connected'); return; }
   try {
-    const health = await checkConnection();
-    const needsToken = health.requiresToken && !apiToken;
-    $('connection-label').textContent = needsToken ? '請輸入存取密碼' : '抓圖後端已連線';
-    $('connection-badge').classList.toggle('connected', !needsToken);
+    await checkConnection();
+    $('connection-label').textContent = '抓圖後端已連線';
+    $('connection-badge').classList.add('connected');
   } catch { $('connection-label').textContent = '後端尚未連線'; $('connection-badge').classList.remove('connected'); }
 }
-function openSettings() { $('api-base').value = apiBase; $('api-token').value = apiToken; $('settings-status').textContent = ''; $('settings-dialog').showModal(); }
+function openSettings() { $('api-base').value = apiBase; $('settings-status').textContent = ''; $('settings-dialog').showModal(); }
 $('settings-button').addEventListener('click', openSettings);
 $('connection-badge').addEventListener('click', openSettings);
 $('close-settings').addEventListener('click', () => $('settings-dialog').close());
@@ -87,13 +87,7 @@ $('test-connection').addEventListener('click', async () => {
   $('settings-status').className = 'settings-status'; $('settings-status').textContent = '正在測試…';
   try {
     const base = $('api-base').value.trim() || (local ? location.origin : '');
-    const token = $('api-token').value;
-    const health = await checkConnection({ base, token });
-    // Health is public. An actual authenticated request verifies the password without fetching a site.
-    if (health.requiresToken) {
-      const response = await fetch(`${endpoint(base)}/api/scan-page`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({}), signal: AbortSignal.timeout(15000) });
-      if (response.status !== 400) { const data = await response.json().catch(() => ({})); throw new Error(data.error || '存取密碼驗證失敗。'); }
-    }
+    await checkConnection({ base });
     $('settings-status').textContent = '連線成功，可以開始收集照片。';
   } catch (error) { $('settings-status').classList.add('error'); $('settings-status').textContent = error.message; }
   finally { button.disabled = false; }
@@ -104,8 +98,7 @@ $('settings-form').addEventListener('submit', event => {
     const value = $('api-base').value.trim();
     apiBase = value ? endpoint(value) : local ? location.origin : '';
     if (!apiBase) throw new Error('GitHub Pages 需要填入抓圖後端網址。');
-    apiToken = $('api-token').value;
-    save(localStorage, 'imgd-api', apiBase); save(sessionStorage, 'imgd-token', apiToken);
+    save(localStorage, 'imgd-api', apiBase);
     $('settings-dialog').close(); refreshConnection(); toast('連線設定已儲存');
   } catch (error) { $('settings-status').className = 'settings-status error'; $('settings-status').textContent = error.message; }
 });

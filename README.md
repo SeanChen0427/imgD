@@ -1,6 +1,6 @@
 # imgD — 產品照片收集站
 
-貼上廠商的產品頁／分類頁網址，按「一鍵收集下載」，自動收集可讀取的照片並下載 ZIP。前台放 GitHub Pages，抓圖 API 放 Cloudflare Worker。本機也能直接執行。
+貼上廠商的產品頁／分類頁網址，按「一鍵收集下載」，自動收集可讀取的照片並下載 ZIP。前台放 GitHub Pages，抓圖 API 放 Cloudflare Worker。本機也能直接執行。你與學員使用工具都無須註冊、登入或輸入密碼。
 
 ## 使用
 
@@ -21,7 +21,7 @@ npm ci
 npm run dev
 ```
 
-打開 **http://localhost:8787**。本機前台與後端一起啟動，不需要 Cloudflare 帳號。可複製 `.env.example` 為 `.env` 調整連接埠或密碼；伺服器僅監聽本機。
+打開 **http://localhost:8787**。本機前台與後端一起啟動，不需要 Cloudflare 帳號。可複製 `.env.example` 為 `.env` 調整連接埠；伺服器僅監聽本機。
 
 ## 部署前台到 GitHub Pages
 
@@ -39,21 +39,16 @@ GitHub Pages 是靜態服務，不能執行抓圖後端；Worker 代為讀取網
 ```sh
 npm ci
 npx wrangler login
-npx wrangler secret put API_TOKEN
 npm run deploy:worker
 ```
 
-`API_TOKEN` 請自行輸入一組不易猜測的密碼，**不要寫入 GitHub 或 docs/config.js**。公開 Worker 預設要求密碼，未設定時不提供抓圖服務。`wrangler.toml` 的 `ALLOWED_ORIGINS` 已允許 `https://seanchen0427.github.io`；若換前台網域，請同步修改後重新部署。
+`wrangler login` 是架設者授權部署到自己的 Cloudflare 帳號，與工具的使用者登入無關；學員不需要 Cloudflare 帳號。`wrangler.toml` 的 `ALLOWED_ORIGINS` 已允許 `https://seanchen0427.github.io`；若換前台網域，請同步修改後重新部署。
 
-完成後，打開前台的「連線設定」：
+完成後，架設者將 Wrangler 顯示的 `https://imgd-api.你的子網域.workers.dev` 填入 `docs/config.js` 的 `apiBase`（不要加 `/api`），再更新 GitHub，學員開啟網站即可使用。
 
-- 後端網址：Wrangler 顯示的 `https://imgd-api.你的子網域.workers.dev`，不要加 `/api`。
-- 存取密碼：剛設定的 `API_TOKEN`。
-- 按「測試連線」再儲存。
+開發或臨時更換後端時，也可在前台的「連線設定」填入後端網址，按「測試連線」再儲存。此覆寫只保存在目前瀏覽器的 localStorage。
 
-後端網址存於目前瀏覽器的 localStorage；密碼只存於此分頁的 sessionStorage，關閉分頁後須重新輸入。也可把公開的後端網址填入 `docs/config.js`，讓其他瀏覽器不需重填網址。
-
-Cloudflare 依方案計算請求及流量，沒有承諾不限量或永久免費。前台來源檢查不是認證，Worker 仍以 API_TOKEN 保護。請妥善保管密碼。
+此版本提供公開、免登入的抓圖 API，保留前台來源檢查、每 IP 限流、公開網址檢查及檔案大小限制；來源檢查不是身分驗證。Cloudflare 依方案計算請求及流量，沒有承諾不限量或永久免費。
 
 ## 能讀取哪些圖片
 
@@ -64,9 +59,9 @@ Cloudflare 依方案計算請求及流量，沒有承諾不限量或永久免費
 
 Logo／小圖篩選與「產品圖片」標記是啟發式判斷，可能漏掉照片或混入非產品圖，可關閉篩選並手動勾選。外部 CSS 樣式表、JavaScript 執行後載入、點擊／無限捲動後才出現、未被連結到的產品、登入、驗證碼或反爬蟲保護均可能造成缺圖；本版不執行廠商 JavaScript，不繞過登入或驗證。因此**不保證取得整站所有照片**。若網站限制直接顯示圖片，預覽可能失敗，但仍可嘗試後端下載。
 
-單頁回應上限 5 MB、單張圖片 20 MB、每次最多收集 1,500 張，瀏覽器打包上限 250 MB。達到頁數／圖片／容量上限會提示分批處理；容量上限時保留已完成的照片。最多同時下載 3 張。後端每 IP 每分鐘上限 90 次請求，前台遇限流會等候 60 秒再試（最多兩次），可隨時停止。停止時，掃描保留結果，下載打包已完成的部分。
+單頁回應上限 5 MB、單張圖片 20 MB、每次最多收集 1,500 張，瀏覽器打包上限 250 MB。達到頁數／圖片／容量上限會提示分批處理；容量上限時保留已完成的照片。最多同時下載 3 張。後端每 IP 每分鐘上限 300 次請求，同教室共用網路時會合併計數；前台遇限流會等候 60 秒再試（最多兩次），可隨時停止。停止時，掃描保留結果，下載打包已完成的部分。
 
-後端不永久儲存照片。僅允許公開 HTTP(S)、80／443 連接埠；封鎖本機／私有／保留 IP、每次重新導向重新檢查、限制回應大小與逾時。本機下載固定 DNS 解析後的公開 IP；Worker 查詢公開 DNS 且不配置私有網路綁定。廠商登入資訊與前台密碼不會轉送給廠商。CSV 處理了試算表公式開頭及引號。
+後端不永久儲存照片。僅允許公開 HTTP(S)、80／443 連接埠；封鎖本機／私有／保留 IP、每次重新導向重新檢查、限制回應大小與逾時。本機下載固定 DNS 解析後的公開 IP；Worker 查詢公開 DNS 且不配置私有網路綁定。不使用或轉送廠商登入資訊。CSV 處理了試算表公式開頭及引號。
 
 請確認廠商授權後使用下載的照片。
 
@@ -84,7 +79,7 @@ npm run worker:check
 - `src/api.js`：前後端共用 API。
 - `src/worker.js`：Cloudflare Worker 入口。
 - `server.mjs`：本機靜態前台及 API，套用 DNS 固定連線。
-- `test/`：解析、來源／密碼、SSRF、圖片回應與 ZIP 互通性測試。
+- `test/`：解析、免登入使用、前台來源、SSRF、圖片回應與 ZIP 互通性測試。
 
 ZIP 互通性測試使用 Python 3 標準函式庫 `zipfile`。
 
