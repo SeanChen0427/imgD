@@ -16,7 +16,9 @@ function log(message) {
 }
 function setBusy(value, kind = '') {
   state.busy = value;
-  for (const id of ['vendor-url', 'scan-button', 'follow-pages', 'filter-noise', 'auto-download', 'page-limit']) $(id).disabled = value;
+  for (const id of ['scan-button', 'add-url', 'only-this-page', 'filter-noise', 'auto-download', 'page-limit']) $(id).disabled = value;
+  for (const control of $('url-list').querySelectorAll('input, button')) control.disabled = value;
+  if (!value) refreshUrlControls();
   $('stop-button').hidden = !value; $('progress-card').hidden = !value;
   $('scan-button').querySelector('span').textContent = value ? kind === 'download' ? '正在打包…' : '正在收集…' : '一鍵收集下載';
   updateSelection();
@@ -134,6 +136,46 @@ $('image-search').addEventListener('input', renderResults);
 $('select-all').addEventListener('change', () => { for (const image of visibleImages()) image.selected = $('select-all').checked; updateSelection(); });
 $('invert-selection').addEventListener('click', () => { for (const image of visibleImages()) image.selected = !image.selected; updateSelection(); });
 
+const MAX_URLS = 20;
+function urlInputs() { return [...$('url-list').querySelectorAll('.vendor-url')]; }
+function refreshUrlControls() {
+  const inputs = urlInputs();
+  inputs.forEach((input, index) => input.setAttribute('aria-label', `廠商網頁網址 ${index + 1}`));
+  // 只剩一列時不顯示 ×，避免把唯一的輸入框刪掉；多列時每列（含第一列）都能刪，寬度一致。
+  for (const button of $('url-list').querySelectorAll('.remove-url')) button.hidden = inputs.length < 2;
+  $('add-url').disabled = state.busy || inputs.length >= MAX_URLS;
+  $('add-url').querySelector('span').textContent = inputs.length >= MAX_URLS ? `最多 ${MAX_URLS} 個連結` : '再加一個連結';
+}
+function addUrlRow(value = '') {
+  if (urlInputs().length >= MAX_URLS) return null;
+  const row = $('url-item-template').content.firstElementChild.cloneNode(true);
+  const input = row.querySelector('input'); input.value = value;
+  $('url-list').append(row); refreshUrlControls();
+  return input;
+}
+$('url-list').addEventListener('click', event => {
+  const button = event.target.closest('.remove-url'); if (!button || urlInputs().length < 2) return;
+  const row = button.closest('.url-item');
+  const next = row.nextElementSibling?.querySelector('input') || row.previousElementSibling?.querySelector('input');
+  row.remove(); refreshUrlControls(); next?.focus();
+});
+$('add-url').addEventListener('click', () => addUrlRow()?.focus());
+// 一次貼上多個網址（換行或空白分隔）時，自動拆成多列。
+$('url-list').addEventListener('paste', event => {
+  const target = event.target; if (!target.classList?.contains('vendor-url')) return;
+  const found = (event.clipboardData?.getData('text') || '').match(/https?:\/\/[^\s"'<>]+/g) || [];
+  if (found.length < 2) return;
+  event.preventDefault(); target.value = found[0];
+  for (const url of found.slice(1)) if (!addUrlRow(url)) break;
+});
+function updateMode() {
+  const only = $('only-this-page').checked;
+  $('page-limit-label').hidden = only;
+  $('mode-hint').textContent = only ? '每個連結只讀取貼上的那一頁，不會跑去其他頁面' : '已取消：會接著收集同網站的產品內頁與下一頁';
+}
+$('only-this-page').addEventListener('change', updateMode);
+updateMode(); refreshUrlControls();
+
 function canonicalPage(value) {
   const url = new URL(value); url.hash = '';
   for (const key of [...url.searchParams.keys()]) if (/^(utm_.+|fbclid|gclid|msclkid)$/i.test(key)) url.searchParams.delete(key);
@@ -142,57 +184,73 @@ function canonicalPage(value) {
 $('scan-form').addEventListener('submit', async event => {
   event.preventDefault(); if (state.busy) return;
   if (!apiBase) { notice('服務暫時未就緒，請稍後重新整理再試。', 'error'); return; }
-  let start;
-  try { start = new URL($('vendor-url').value.trim()); if (!['http:', 'https:'].includes(start.protocol)) throw new Error(); }
-  catch { notice('請貼入完整的 http 或 https 廠商網址。', 'error'); return; }
-  const follow = $('follow-pages').checked, autoDownload = $('auto-download').checked, filterNoise = $('filter-noise').checked;
-  const limit = follow ? Number($('page-limit').value) : 1;
+  const inputs = urlInputs(), starts = [], seenStarts = new Set();
+  for (const [index, input] of inputs.entries()) {
+    const value = input.value.trim(); if (!value) continue;
+    let url;
+    try { url = new URL(value); if (!['http:', 'https:'].includes(url.protocol)) throw new Error(); }
+    catch { notice(`第 ${index + 1} 個連結不是完整的 http 或 https 網址，請檢查後再試。`, 'error'); input.focus(); return; }
+    const key = canonicalPage(url.href); if (seenStarts.has(key)) continue;
+    seenStarts.add(key); starts.push(url);
+  }
+  if (!starts.length) { notice('請先貼上至少一個廠商網址。', 'error'); inputs[0]?.focus(); return; }
+  const follow = !$('only-this-page').checked, autoDownload = $('auto-download').checked, filterNoise = $('filter-noise').checked;
+  const limit = follow ? Number($('page-limit').value) : 1, budget = starts.length * limit, multiple = starts.length > 1;
   state.controller = new AbortController(); const signal = state.controller.signal;
-  Object.assign(state, { images: [], logs: [], scanned: 0, attempted: 0, title: '', source: start.href });
+  Object.assign(state, { images: [], logs: [], scanned: 0, attempted: 0, title: '', source: starts[0].href, sources: starts.map(url => url.href) });
   $('image-grid').replaceChildren(); $('job-log').replaceChildren(); $('log-details').hidden = true; $('image-search').value = '';
   notice(); setBusy(true, 'scan'); renderResults();
-  const queue = [canonicalPage(start.href)], queued = new Set(queue), visited = new Set(), seenImages = new Set();
-  let siteOrigin = start.origin, interrupted = false, capped = false, fatal = false;
+  const visited = new Set(), seenImages = new Set();
+  let interrupted = false, capped = false, fatal = false, lastError = '';
   try {
-    while (queue.length && state.attempted < limit && state.images.length < 1500) {
-      signal.throwIfAborted(); const url = queue.shift(); if (visited.has(url)) continue;
-      visited.add(url); state.attempted++;
-      progress(`正在收集第 ${state.attempted} 頁`, url, state.attempted, limit);
-      try {
-        const response = await api('/api/scan-page', { url, filterNoise }, signal); const page = await response.json();
-        state.scanned++;
-        if (state.scanned === 1) { state.title = page.title; siteOrigin = new URL(page.url).origin; }
-        visited.add(canonicalPage(page.url));
-        for (const warning of page.warnings) log(warning + ' ' + page.url);
-        let added = 0; const fragment = document.createDocumentFragment();
-        for (const image of page.images) {
-          if (seenImages.has(image.url)) continue;
-          seenImages.add(image.url); const item = { ...image, selected: true }; state.images.push(item);
-          fragment.append(makeCard(item, state.images.length - 1)); added++;
-          if (state.images.length >= 1500) break;
+    for (const [index, start] of starts.entries()) {
+      // 每個連結各自一個佇列與頁數上限；「只抓這一頁」時上限就是 1 頁、不追任何連結。
+      const label = multiple ? `第 ${index + 1}/${starts.length} 個連結 · ` : '';
+      const queue = [canonicalPage(start.href)], queued = new Set(queue);
+      let siteOrigin = start.origin, pages = 0;
+      while (queue.length && pages < limit && state.images.length < 1500) {
+        signal.throwIfAborted(); const url = queue.shift(); if (visited.has(url)) continue;
+        visited.add(url); pages++; state.attempted++;
+        progress(follow ? `${label}正在收集第 ${pages} 頁` : `${label}正在讀取網頁`, url, state.attempted, follow ? budget : starts.length);
+        try {
+          const response = await api('/api/scan-page', { url, filterNoise }, signal); const page = await response.json();
+          state.scanned++;
+          if (!state.title) state.title = multiple ? `${page.title} 等 ${starts.length} 個連結` : page.title;
+          if (pages === 1) siteOrigin = new URL(page.url).origin;
+          visited.add(canonicalPage(page.url));
+          for (const warning of page.warnings) log(warning + ' ' + page.url);
+          let added = 0; const fragment = document.createDocumentFragment();
+          for (const image of page.images) {
+            if (seenImages.has(image.url)) continue;
+            seenImages.add(image.url); const item = { ...image, selected: true }; state.images.push(item);
+            fragment.append(makeCard(item, state.images.length - 1)); added++;
+            if (state.images.length >= 1500) break;
+          }
+          $('image-grid').append(fragment); log(`讀取完成：新增 ${added} 張 — ${page.url}`);
+          if (follow) for (const link of page.links) {
+            const candidate = canonicalPage(link.url);
+            if (new URL(candidate).origin !== siteOrigin || queued.has(candidate) || visited.has(candidate) || queued.size >= 5000) continue;
+            queued.add(candidate); queue.push(candidate);
+          }
+          renderResults();
+        } catch (error) {
+          if (signal.aborted) throw error;
+          lastError = error.message; log(`讀取失敗：${error.message} — ${url}`);
         }
-        $('image-grid').append(fragment); log(`讀取完成：新增 ${added} 張 — ${page.url}`);
-        if (follow) for (const link of page.links) {
-          const candidate = canonicalPage(link.url);
-          if (new URL(candidate).origin !== siteOrigin || queued.has(candidate) || visited.has(candidate) || queued.size >= 5000) continue;
-          queued.add(candidate); queue.push(candidate);
-        }
-        renderResults();
-      } catch (error) {
-        if (signal.aborted) throw error;
-        log(`讀取失敗：${error.message} — ${url}`);
-        if (state.attempted === 1) { notice(error.message, 'error'); fatal = true; break; }
+        if (queue.length && pages < limit) await pause(350, signal);
       }
-      if (queue.length && state.attempted < limit) await pause(350, signal);
+      if (queue.length && pages >= limit) capped = true;
+      if (state.images.length >= 1500) { capped = true; break; }
+      if (index < starts.length - 1) await pause(350, signal);
     }
-    capped = queue.length > 0 || state.images.length >= 1500;
   } catch (error) { if (signal.aborted) interrupted = true; else { notice(error.message, 'error'); fatal = true; } }
   finally { setBusy(false); renderResults(); }
   if (fatal) return;
   if (interrupted) { notice(`已停止收集。保留已找到的 ${state.images.length} 張照片，你仍可勾選下載。`, 'warning'); return; }
+  if (!state.scanned) { notice(multiple ? `${starts.length} 個連結都讀取失敗：${lastError}` : lastError, 'error'); return; }
   if (!state.images.length) { notice('沒有找到可讀取的圖片。可改貼產品內頁，或取消「略過 Logo 與明顯小圖」再試。動態載入、需登入或驗證的網站可能無法使用。', 'warning'); return; }
   const failures = state.attempted - state.scanned;
-  const tail = `${!follow ? '本次只讀取貼入的這一頁。' : capped ? '已達本次收集上限，尚有頁面未讀取；可以提高頁數或分批收集。' : '已處理本次找到的可追蹤連結。'}${failures ? `其中 ${failures} 頁讀取失敗，詳見處理紀錄。` : ''}`;
+  const tail = `${!follow ? `本次只讀取貼入的${multiple ? ` ${starts.length} 個網頁` : '這一頁'}。` : capped ? '已達本次收集上限，尚有頁面未讀取；可以提高頁數或分批收集。' : '已處理本次找到的可追蹤連結。'}${failures ? `其中 ${failures} 頁讀取失敗，詳見處理紀錄。` : ''}`;
   notice(`找到 ${state.images.length} 張照片，已讀取 ${state.scanned} 頁。${tail}`, capped || failures ? 'warning' : '');
   if (autoDownload) await downloadImages(tail);
 });
@@ -252,7 +310,7 @@ async function downloadImages(scanNote = '') {
     const count = files.length;
     files.push({ name: '圖片來源.csv', data: csv(manifest) });
     const note = [
-      `imgD 圖片收集紀錄`, `起始網址：${state.source}`, `收集日期：${new Date().toLocaleString('zh-TW')}`, `成功照片：${count}；合併重複：${duplicates}；下載失敗：${failures.length}`,
+      `imgD 圖片收集紀錄`, `起始網址：${(state.sources || [state.source]).join('\r\n　　　　　')}`, `收集日期：${new Date().toLocaleString('zh-TW')}`, `成功照片：${count}；合併重複：${duplicates}；下載失敗：${failures.length}`,
       scanNote, signal.aborted ? '本次工作已提前停止，ZIP 僅包含完成下載的照片。' : '',
       memoryLimit ? '本次達到 250 MB 打包上限，請分批下載剩餘照片。' : '',
       '這是可讀取的網頁圖片清單，不保證包含網站全部產品。動態載入、登入、驗證、反爬蟲或未追蹤到的分頁可能導致缺圖。',

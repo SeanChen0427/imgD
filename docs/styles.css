@@ -78,6 +78,22 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .url-input-wrap input { height: 52px; border: 0; background: transparent; color: var(--slate-700); width: 100%; min-width: 0; outline: none; font-size: 16px; }
 .url-input-wrap input::placeholder { color: var(--slate-400); }
 .url-input-wrap input:disabled { color: var(--slate-400); }
+.url-list { display: flex; flex-direction: column; gap: 10px; }
+.url-item { display: flex; align-items: center; gap: 8px; }
+.url-item .remove-url { flex-shrink: 0; width: 40px; height: 40px; }
+.url-item .remove-url:hover { background: var(--red-50); color: var(--red-600); }
+.url-actions { display: flex; flex-direction: column; gap: 12px; }
+.scan-buttons { display: flex; gap: 10px; }
+.scan-buttons .scan-button { flex: 1; }
+.secondary { background: #fff; color: var(--indigo-600); border: 2px dashed var(--indigo-200); }
+.secondary:hover:not(:disabled) { background: var(--indigo-50); border-color: var(--indigo-400); }
+.secondary:disabled { color: var(--slate-300); border-color: var(--slate-200); }
+.mode-box { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; background: var(--indigo-50); border: 1px solid var(--indigo-100); border-radius: var(--radius-box); padding: 14px 16px; }
+.check-option.mode-option { align-items: flex-start; }
+.check-option.mode-option input { margin-top: 3px; }
+.mode-option span { display: flex; flex-direction: column; gap: 2px; }
+.mode-option strong { font-size: 15px; color: var(--indigo-700); }
+.mode-option small { font-size: 13px; color: var(--slate-500); }
 .scan-options { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; color: var(--slate-600); }
 .check-option { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
 .check-option input { width: 16px; height: 16px; margin: 0; accent-color: var(--indigo-600); cursor: pointer; }
@@ -176,8 +192,8 @@ dialog::backdrop { background: rgb(15 23 42 / .45); backdrop-filter: blur(4px); 
 
 /* 響應式：對應 Tailwind sm / md 斷點 */
 @media (min-width: 640px) {
-  .url-row { flex-direction: row; }
-  .scan-button { min-width: 168px; }
+  .url-actions { flex-direction: row; justify-content: space-between; align-items: center; }
+  .scan-buttons .scan-button { flex: none; min-width: 168px; }
   .collection-heading { flex-direction: row; align-items: center; justify-content: space-between; }
   .image-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 }

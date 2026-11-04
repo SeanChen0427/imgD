@@ -7,9 +7,9 @@
   <meta name="theme-color" content="#f8fafc">
   <title>產品照片一鍵下載工具 - 熊恩Sean 課程專屬</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=20261105-1">
-  <script src="./config.js?v=20261105-1"></script>
-  <script type="module" src="./app.js?v=20261105-1"></script>
+  <link rel="stylesheet" href="./styles.css?v=20261105-2">
+  <script src="./config.js?v=20261105-2"></script>
+  <script type="module" src="./app.js?v=20261105-2"></script>
 </head>
 <body>
   <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -20,6 +20,7 @@
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></symbol>
     <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.13-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.13a.5.5 0 0 1 .96 0l1.58 6.13a2 2 0 0 0 1.44 1.44l6.13 1.58a.5.5 0 0 1 0 .96l-6.13 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.13a.5.5 0 0 1-.96 0z"/></symbol>
     <symbol id="i-instagram" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37zM17.5 6.5h.01"/></symbol>
@@ -43,24 +44,39 @@
         <div class="card-tags"><span class="step-pill">STEP 1</span><span class="tag-label">貼上網址</span></div>
         <div>
           <h2 class="card-title" id="scan-title">從一個網址開始</h2>
-          <p class="card-subtitle">支援產品頁、分類頁，會自動追蹤同網站的產品內頁與下一頁</p>
+          <p class="card-subtitle">支援產品頁、分類頁；按「再加一個連結」可以一次貼好幾個網址</p>
         </div>
-        <form id="scan-form">
-          <label class="sr-only" for="vendor-url">廠商網頁網址</label>
-          <div class="url-row">
-            <div class="url-input-wrap"><svg><use href="#i-link"/></svg><input id="vendor-url" type="url" required placeholder="https://廠商網址/產品或分類頁" autocomplete="url" spellcheck="false"></div>
-            <button class="button primary scan-button" id="scan-button" type="submit"><svg><use href="#i-sparkles"/></svg><span>一鍵收集下載</span></button>
-            <button class="button danger" id="stop-button" type="button" hidden>停止</button>
+        <form id="scan-form" novalidate>
+          <div class="url-list" id="url-list">
+            <div class="url-item">
+              <div class="url-input-wrap"><svg><use href="#i-link"/></svg><input class="vendor-url" id="vendor-url" type="url" placeholder="https://廠商網址/產品或分類頁" autocomplete="url" spellcheck="false" aria-label="廠商網頁網址 1"></div>
+              <button class="icon-button remove-url" type="button" aria-label="移除這個連結" hidden><svg><use href="#i-close"/></svg></button>
+            </div>
+          </div>
+          <div class="url-actions">
+            <button class="button secondary add-url-button" id="add-url" type="button"><svg><use href="#i-plus"/></svg><span>再加一個連結</span></button>
+            <div class="scan-buttons">
+              <button class="button primary scan-button" id="scan-button" type="submit"><svg><use href="#i-sparkles"/></svg><span>一鍵收集下載</span></button>
+              <button class="button danger" id="stop-button" type="button" hidden>停止</button>
+            </div>
+          </div>
+          <div class="mode-box">
+            <label class="check-option mode-option"><input type="checkbox" id="only-this-page" checked><span><strong>只抓這一頁的照片</strong><small id="mode-hint">每個連結只讀取貼上的那一頁，不會跑去其他頁面</small></span></label>
+            <label class="page-limit-label" for="page-limit" id="page-limit-label" hidden>每個連結最多收集
+              <select id="page-limit"><option value="10">10</option><option value="30" selected>30</option><option value="100">100</option></select> 頁</label>
           </div>
           <div class="scan-options">
-            <label class="check-option"><input type="checkbox" id="follow-pages" checked><span>接著收集產品內頁與下一頁</span></label>
             <label class="check-option"><input type="checkbox" id="filter-noise" checked><span>略過 Logo 與明顯小圖</span></label>
             <label class="check-option"><input type="checkbox" id="auto-download" checked><span>完成後自動下載 ZIP</span></label>
-            <label class="page-limit-label" for="page-limit">最多收集
-              <select id="page-limit"><option value="1">1</option><option value="10">10</option><option value="30" selected>30</option><option value="100">100</option></select> 頁</label>
           </div>
         </form>
-        <div class="hint-box"><svg><use href="#i-info"/></svg><p>從產品分類頁開始，通常能收集到更多照片。需要登入、驗證或動態載入的網站，可能無法完整讀取。</p></div>
+        <template id="url-item-template">
+          <div class="url-item">
+            <div class="url-input-wrap"><svg><use href="#i-link"/></svg><input class="vendor-url" type="url" placeholder="https://再貼一個廠商網址" autocomplete="url" spellcheck="false"></div>
+            <button class="icon-button remove-url" type="button" aria-label="移除這個連結"><svg><use href="#i-close"/></svg></button>
+          </div>
+        </template>
+        <div class="hint-box"><svg><use href="#i-info"/></svg><p>想一次抓整個分類的商品，請貼分類頁並取消「只抓這一頁的照片」。需要登入、驗證或動態載入的網站，可能無法完整讀取。</p></div>
         <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
         <div class="progress-card" id="progress-card" aria-label="處理進度" hidden>
           <div class="progress-head"><span class="progress-title" id="progress-title">正在讀取網頁…</span><span id="progress-count"></span></div>
