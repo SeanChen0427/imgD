@@ -32,7 +32,7 @@ npm run dev
 3. Branch 選 **main**，資料夾選 **/docs**，按 Save。
 4. 等待 GitHub 完成部署。此儲存庫的預期網址為 **https://seanchen0427.github.io/imgD/**，實際以 Pages 顯示的網址為準。
 
-所有前台資產使用相對路徑，支援 `/imgD/` 子路徑。前台無須打包。Google Fonts 載入失敗時使用系統字型；功能沒有第三方 CDN 依賴。
+所有前台資產使用相對路徑，支援 `/imgD/` 子路徑。GitHub 前台無須打包，使用系統字型；功能沒有第三方 CDN 依賴。
 
 ## 部署抓圖後端到 Cloudflare
 
