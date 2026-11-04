@@ -1,6 +1,20 @@
 import { AppError, fetchPublic, publicUrl, readLimited } from './security.js';
 import { extractPage } from './extract.js';
 
+const requestWindows = new Map();
+// Used by hosts without Cloudflare's distributed Rate Limit binding.
+// Bounded, per-isolate fallback; no IPs or photos are persisted.
+function localRateLimit(key) {
+  const now = Date.now();
+  for (const [ip, window] of requestWindows) if (window.expires <= now) requestWindows.delete(ip);
+  let window = requestWindows.get(key);
+  if (!window) {
+    if (requestWindows.size >= 10000) return false;
+    window = { count: 0, expires: now + 60000 }; requestWindows.set(key, window);
+  }
+  return ++window.count <= 300;
+}
+
 export async function handleApi(request, env = {}, transport = fetch) {
   const path = new URL(request.url).pathname;
   const origin = request.headers.get('origin');
@@ -14,11 +28,9 @@ export async function handleApi(request, env = {}, transport = fetch) {
     if (path === '/api/health' && request.method === 'GET') return json({ ok: true, name: 'imgD' });
     if (request.method !== 'POST') throw new AppError('不支援此請求。', 405);
     if (!['/api/scan-page', '/api/image'].includes(path)) throw new AppError('找不到這個功能。', 404);
-    if (env.RATE_LIMITER) {
-      const ip = request.headers.get('cf-connecting-ip') || 'unknown';
-      const { success } = await env.RATE_LIMITER.limit({ key: ip });
-      if (!success) throw new AppError('請求較密集，請稍候一分鐘再試。', 429);
-    }
+    const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+    const success = env.RATE_LIMITER ? (await env.RATE_LIMITER.limit({ key: ip })).success : localRateLimit(ip);
+    if (!success) throw new AppError('請求較密集，請稍候一分鐘再試。', 429);
     if (!request.headers.get('content-type')?.includes('application/json')) throw new AppError('請使用 JSON 請求。', 415);
     let body;
     try { body = JSON.parse(new TextDecoder().decode(await readLimited(request, 16000))); } catch { throw new AppError('請求內容無效。'); }
