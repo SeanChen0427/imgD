@@ -3,6 +3,7 @@ node_modules/
 .dev.vars
 .wrangler/
 .worker-build/
+.deploy/
 test-results/
 *.zip
 .DS_Store
