@@ -7,9 +7,9 @@
   <meta name="theme-color" content="#152c28">
   <title>imgD — 產品照片收集站</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=20261104-2">
-  <script src="./config.js?v=20261104-2"></script>
-  <script type="module" src="./app.js?v=20261104-2"></script>
+  <link rel="stylesheet" href="./styles.css?v=20261104-3">
+  <script src="./config.js?v=20261104-3"></script>
+  <script type="module" src="./app.js?v=20261104-3"></script>
 </head>
 <body>
   <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -29,12 +29,11 @@
     <p class="brand-sub">把好照片，一次收好。</p>
     <div class="nav-label">工作空間</div>
     <a class="nav-item active" href="#workspace" aria-current="page"><svg><use href="#i-grid"/></svg>照片收集站<span class="nav-dot"></span></a>
-    <button class="nav-item" id="settings-button"><svg><use href="#i-settings"/></svg>連線設定</button>
     <div class="sidebar-note"><span class="note-line"></span><p>少一點重複下載，<br>多一點創作時間。</p><span>MADE FOR YOUR WORKFLOW</span></div>
     <a class="repo-link" href="https://github.com/SeanChen0427/imgD" target="_blank" rel="noopener noreferrer">GitHub 專案 <span>↗</span></a>
   </aside>
   <main id="workspace">
-    <header class="topbar"><span>工作空間 <span class="breadcrumb-slash">/</span> <strong>照片收集站</strong></span><button id="connection-badge" class="connection-badge"><span></span><span id="connection-label">檢查連線中</span></button></header>
+    <header class="topbar"><span>工作空間 <span class="breadcrumb-slash">/</span> <strong>照片收集站</strong></span><span id="connection-badge" class="connection-badge" role="status"><span></span><span id="connection-label">檢查服務中</span></span></header>
     <div class="page-content">
       <section class="page-heading"><div><div class="eyebrow">PRODUCT IMAGE COLLECTOR</div><h1>產品照片，一次打包。</h1><p>貼上廠商網址，讓逐張另存變成一鍵完成。</p></div><div class="heading-art" aria-hidden="true"><span class="art-card art-back"></span><span class="art-card art-front"><svg><use href="#i-image"/></svg></span><span class="art-spark">✦</span></div></section>
       <section class="scan-card" aria-labelledby="scan-title">
@@ -60,7 +59,6 @@
       <footer class="page-footer"><span>imgD <span class="footer-dot">·</span> 讓收集更簡單</span><span>下載照片前，請確認已取得廠商授權。</span></footer>
     </div>
   </main>
-  <dialog id="settings-dialog" aria-labelledby="settings-title"><form id="settings-form"><div class="dialog-heading"><h2 id="settings-title">連線設定</h2><button type="button" class="icon-button" id="close-settings" aria-label="關閉設定"><svg><use href="#i-close"/></svg></button></div><p>由架設者設定抓圖後端。設定完成後，學員直接貼網址即可使用，無須帳號或密碼。</p><label for="api-base">後端網址</label><input type="url" id="api-base" placeholder="https://imgd-api.你的帳號.workers.dev" autocomplete="url"><small>本機使用時可留白。正式上線後會預設好網址，學員不需更改。</small><div id="settings-status" class="settings-status" role="status"></div><div class="dialog-actions"><button type="button" class="button secondary" id="test-connection">測試連線</button><button type="submit" class="button primary">儲存設定</button></div></form></dialog>
   <dialog id="lightbox" aria-labelledby="lightbox-title"><div class="lightbox-heading"><h2 id="lightbox-title"></h2><button class="icon-button" id="close-lightbox" aria-label="關閉預覽"><svg><use href="#i-close"/></svg></button></div><div class="lightbox-image-wrap"><img id="lightbox-image" alt=""></div><a id="lightbox-source" target="_blank" rel="noopener noreferrer">開啟原始圖片 ↗</a></dialog>
   <div class="toast" id="toast" role="status" hidden></div>
 </body>
