@@ -4,7 +4,8 @@ const $ = id => document.getElementById(id);
 const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 function stored(storage, key) { try { return storage.getItem(key) || ''; } catch { return ''; } }
 function save(storage, key, value) { try { value ? storage.setItem(key, value) : storage.removeItem(key); } catch { /* private mode */ } }
-let apiBase = stored(localStorage, 'imgd-api') || window.IMGD_CONFIG?.apiBase || (local ? location.origin : '');
+const defaultApiBase = local ? location.origin : window.IMGD_CONFIG?.apiBase || '';
+let apiBase = stored(localStorage, 'imgd-api') || defaultApiBase;
 // Remove the password retained by earlier versions; this tool requires no login.
 save(sessionStorage, 'imgd-token', '');
 const state = { images: [], logs: [], busy: false, controller: null, scanned: 0, attempted: 0, title: '', source: '' };
@@ -86,7 +87,7 @@ $('test-connection').addEventListener('click', async () => {
   const button = $('test-connection'); button.disabled = true;
   $('settings-status').className = 'settings-status'; $('settings-status').textContent = '正在測試…';
   try {
-    const base = $('api-base').value.trim() || (local ? location.origin : '');
+    const base = $('api-base').value.trim() || defaultApiBase;
     await checkConnection({ base });
     $('settings-status').textContent = '連線成功，可以開始收集照片。';
   } catch (error) { $('settings-status').classList.add('error'); $('settings-status').textContent = error.message; }
@@ -96,7 +97,7 @@ $('settings-form').addEventListener('submit', event => {
   event.preventDefault();
   try {
     const value = $('api-base').value.trim();
-    apiBase = value ? endpoint(value) : local ? location.origin : '';
+    apiBase = value ? endpoint(value) : defaultApiBase;
     if (!apiBase) throw new Error('GitHub Pages 需要填入抓圖後端網址。');
     save(localStorage, 'imgd-api', apiBase);
     $('settings-dialog').close(); refreshConnection(); toast('連線設定已儲存');
