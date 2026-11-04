@@ -2,12 +2,9 @@ import { createZip } from './zip.js';
 
 const $ = id => document.getElementById(id);
 const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
-function stored(storage, key) { try { return storage.getItem(key) || ''; } catch { return ''; } }
-function save(storage, key, value) { try { value ? storage.setItem(key, value) : storage.removeItem(key); } catch { /* private mode */ } }
-const defaultApiBase = local ? location.origin : window.IMGD_CONFIG?.apiBase || '';
-let apiBase = stored(localStorage, 'imgd-api') || defaultApiBase;
-// Remove the password retained by earlier versions; this tool requires no login.
-save(sessionStorage, 'imgd-token', '');
+const apiBase = local ? location.origin : window.IMGD_CONFIG?.apiBase || '';
+// Old manual settings must never override the published, working service.
+try { localStorage.removeItem('imgd-api'); sessionStorage.removeItem('imgd-token'); } catch { /* private mode */ }
 const state = { images: [], logs: [], busy: false, controller: null, scanned: 0, attempted: 0, title: '', source: '' };
 let toastTimer;
 
@@ -19,7 +16,7 @@ function log(message) {
 }
 function setBusy(value, kind = '') {
   state.busy = value;
-  for (const id of ['vendor-url', 'scan-button', 'follow-pages', 'filter-noise', 'auto-download', 'page-limit', 'settings-button', 'connection-badge']) $(id).disabled = value;
+  for (const id of ['vendor-url', 'scan-button', 'follow-pages', 'filter-noise', 'auto-download', 'page-limit']) $(id).disabled = value;
   $('stop-button').hidden = !value; $('progress-card').hidden = !value;
   $('scan-button').querySelector('span').textContent = value ? kind === 'download' ? '正在打包…' : '正在收集…' : '一鍵收集下載';
   updateSelection();
@@ -43,10 +40,9 @@ function endpoint(base) {
   if (url.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) throw new Error('公開後端請使用 https 網址。');
   return url.href.replace(/\/$/, '');
 }
-async function api(path, body, signal, settings = {}) {
-  const base = settings.base ?? apiBase;
-  if (!base) throw new Error('請先在「連線設定」填入後端網址。');
-  const url = `${endpoint(base)}${path}`;
+async function api(path, body, signal) {
+  if (!apiBase) throw new Error('服務暫時未就緒，請稍後重新整理再試。');
+  const url = `${endpoint(apiBase)}${path}`;
   for (let retry = 0; retry < 3; retry++) {
     let response;
     try {
@@ -58,7 +54,7 @@ async function api(path, body, signal, settings = {}) {
       });
     } catch (error) {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-      throw new Error(error.name === 'TimeoutError' ? '連線逾時，請稍後再試。' : '無法連線到抓圖後端，請檢查網址與後端允許的前台來源。');
+      throw new Error(error.name === 'TimeoutError' ? '連線逾時，請稍後再試。' : '目前無法連線到抓圖服務，請稍後重試。');
     }
     if (response.status === 429 && signal && retry < 2) {
       $('progress-detail').textContent = '達到後端頻率限制，稍候 60 秒將自動繼續。';
@@ -68,41 +64,20 @@ async function api(path, body, signal, settings = {}) {
     return response;
   }
 }
-async function checkConnection(settings) {
-  const response = await api('/api/health', undefined, undefined, settings); return response.json();
+async function checkConnection() {
+  const response = await api('/api/health');
+  const health = await response.json();
+  if (!health.ok || health.name !== 'imgD') throw new Error('服務暫時未就緒。');
+  return health;
 }
 async function refreshConnection() {
-  if (!apiBase) { $('connection-label').textContent = '設定抓圖後端'; $('connection-badge').classList.remove('connected'); return; }
+  if (!apiBase) { $('connection-label').textContent = '服務暫時未就緒'; $('connection-badge').classList.remove('connected'); return; }
   try {
     await checkConnection();
-    $('connection-label').textContent = '抓圖後端已連線';
+    $('connection-label').textContent = '服務已就緒';
     $('connection-badge').classList.add('connected');
-  } catch { $('connection-label').textContent = '後端尚未連線'; $('connection-badge').classList.remove('connected'); }
+  } catch { $('connection-label').textContent = '服務暫時無法連線'; $('connection-badge').classList.remove('connected'); }
 }
-function openSettings() { $('api-base').value = apiBase; $('settings-status').textContent = ''; $('settings-dialog').showModal(); }
-$('settings-button').addEventListener('click', openSettings);
-$('connection-badge').addEventListener('click', openSettings);
-$('close-settings').addEventListener('click', () => $('settings-dialog').close());
-$('test-connection').addEventListener('click', async () => {
-  const button = $('test-connection'); button.disabled = true;
-  $('settings-status').className = 'settings-status'; $('settings-status').textContent = '正在測試…';
-  try {
-    const base = $('api-base').value.trim() || defaultApiBase;
-    await checkConnection({ base });
-    $('settings-status').textContent = '連線成功，可以開始收集照片。';
-  } catch (error) { $('settings-status').classList.add('error'); $('settings-status').textContent = error.message; }
-  finally { button.disabled = false; }
-});
-$('settings-form').addEventListener('submit', event => {
-  event.preventDefault();
-  try {
-    const value = $('api-base').value.trim();
-    apiBase = value ? endpoint(value) : defaultApiBase;
-    if (!apiBase) throw new Error('GitHub Pages 需要填入抓圖後端網址。');
-    save(localStorage, 'imgd-api', apiBase);
-    $('settings-dialog').close(); refreshConnection(); toast('連線設定已儲存');
-  } catch (error) { $('settings-status').className = 'settings-status error'; $('settings-status').textContent = error.message; }
-});
 
 function visibleImages() {
   const term = $('image-search').value.trim().toLowerCase();
@@ -166,7 +141,7 @@ function canonicalPage(value) {
 }
 $('scan-form').addEventListener('submit', async event => {
   event.preventDefault(); if (state.busy) return;
-  if (!apiBase) { notice('首次使用請先設定抓圖後端。'); openSettings(); return; }
+  if (!apiBase) { notice('服務暫時未就緒，請稍後重新整理再試。', 'error'); return; }
   let start;
   try { start = new URL($('vendor-url').value.trim()); if (!['http:', 'https:'].includes(start.protocol)) throw new Error(); }
   catch { notice('請貼入完整的 http 或 https 廠商網址。', 'error'); return; }
@@ -305,5 +280,6 @@ function openLightbox(image) {
   $('lightbox-source').href = image.url; $('lightbox').showModal();
 }
 $('close-lightbox').addEventListener('click', () => $('lightbox').close());
-for (const dialog of [$('settings-dialog'), $('lightbox')]) dialog.addEventListener('click', event => { if (event.target === dialog) { const rect = dialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close(); } });
+const dialog = $('lightbox');
+dialog.addEventListener('click', event => { if (event.target === dialog) { const rect = dialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close(); } });
 refreshConnection();
