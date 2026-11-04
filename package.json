@@ -1,0 +1,19 @@
+{
+  "name": "imgd",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "廠商產品照片批次下載工具：GitHub Pages + Cloudflare Worker",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env server.mjs",
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "test": "node --test",
+    "check": "node --check docs/app.js && node --check docs/zip.js && node --check src/api.js && node --check src/extract.js && node --check src/security.js && node --check server.mjs",
+    "worker:dev": "wrangler dev",
+    "worker:check": "wrangler deploy --dry-run --outdir .worker-build",
+    "deploy:worker": "wrangler deploy"
+  },
+  "dependencies": { "ipaddr.js": "^2.2.0", "linkedom": "^0.18.12" },
+  "devDependencies": { "wrangler": "^4.0.0" }
+}

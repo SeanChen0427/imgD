@@ -1,0 +1,13 @@
+name = "imgd-api"
+main = "src/worker.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://seanchen0427.github.io"
+# 公開部署預設要求 API_TOKEN，使用 npx wrangler secret put API_TOKEN 設定。
+REQUIRE_TOKEN = "true"
+
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 90, period = 60 }

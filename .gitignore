@@ -1,0 +1,8 @@
+node_modules/
+.env
+.dev.vars
+.wrangler/
+.worker-build/
+test-results/
+*.zip
+.DS_Store
